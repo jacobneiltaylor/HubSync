@@ -4,7 +4,7 @@
 	 *	HubSync PHP Script
 	 *	Copyright 2015 - Taylor Networks
 	 *	
-	 *	Licensed under the MIT license, see "LICENSE" for more information. 
+	 *	Licensed under the MIT license, see "LICENSE" for more information.
 	 *
 	 */
 	 
