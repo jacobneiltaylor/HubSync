@@ -7,7 +7,10 @@
 	 *	Licensed under the MIT license, see "LICENSE" for more information. 
 	 *
 	 */
+	 
+	include_once('src/IpUtils.php')
 	
+	use Symfony\Component\HttpFoundation;
 	
 	// Configuration options
 	$apiEndpoint    = "https://api.github.com/"; // Change for enterprise deployments
@@ -38,12 +41,7 @@
 	{
 		if((bool) filter_var($clientIp, FILTER_VALIDATE_IP))
 		{
-			$unpacked = unpack("A4", inet_pton($clientIp));
 			
-			var_dump($unpacked);
-			
-    		$responseCode = 200;
-			$responseText = $unpacked[1];
 		}
 		else
 		{
