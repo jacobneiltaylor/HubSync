@@ -14,81 +14,146 @@
 	// Configuration options
 	$apiEndpoint    = "https://api.github.com/"; // Change for enterprise deployments
 	$apiUserAgent   = "YourGithubUsername"; // Used to set the User-Agent for GitHub API requests. See https://developer.github.com/v3/#user-agent-required for more info.
+	$secureMode     = FALSE; // Set to true to cryptographically validate webhook request payloads with $requestToken.
+	$requestToken   = "superSecretToken"; // This is the shared secret used to verify webhook request payloads. Change this before using this script
 	$clientIpHeader = "REMOTE_ADDR"; // Change if running behind CDN (e.g. Cloudflare or MaxCDN). Consult your CDN documentation for the correct header parameters.
 	
 	// Variables
 	$responseCode;
 	$responseText;
+	$payload;
 	
 	// Detect and verify client IP address
-	$clientIp = "192.168.0.1"; //$_SERVER[$clientIpHeader];
+	$clientIp = $_SERVER[$clientIpHeader];
 	$apiPath  = "meta";
 	
-	$curl = curl_init($apiEndpoint . $apiPath);
-	
-	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($curl, CURLOPT_USERAGENT, $apiUserAgent);
-	
-	$curl_response = curl_exec($curl);
-	
-	if ($curl_response === false) 
+	if(isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === "POST")
 	{
-    	$info = curl_getinfo($curl);
-    	$responseCode = 500;
-		$responseText = "cURL encountered an error while attempting to access API - " . curl_error($curl);
-		curl_close($curl);
-	}
-	else
-	{
-		if((bool) filter_var($clientIp, FILTER_VALIDATE_IP))
+		$curl = curl_init($apiEndpoint . $apiPath);
+		
+		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($curl, CURLOPT_USERAGENT, $apiUserAgent);
+		
+		$curl_response = curl_exec($curl);
+		
+		if ($curl_response === false) 
 		{
-			$clientMatches = false;
-			
-			$ipv4Sources = array();
-			$ipv6Sources = array();
-			
-			$response = json_decode($curl_response);
-			
-			var_dump($curl_response);
-			
-			foreach($response->hooks as $ipSource)
+			$info = curl_getinfo($curl);
+			$responseCode = 500;
+			$responseText = "cURL encountered an error while attempting to access API - " . curl_error($curl);
+			curl_close($curl);
+		}
+		else
+		{
+			if((bool) filter_var($clientIp, FILTER_VALIDATE_IP))
 			{
-				if(filter_var($ipSource, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+				$clientMatches = false;
+				
+				$ipv4Sources = array();
+				$ipv6Sources = array();
+				
+				$response = json_decode($curl_response);
+				
+				foreach($response->hooks as $ipSource)
 				{
-					array_push($ipv6Sources, $ipSource);
+					$ipSourceStripped = explode('/', $ipSource)[0];
+					
+					if(filter_var($ipSourceStripped, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+					{
+						array_push($ipv6Sources, $ipSource);
+					}
+					elseif(filter_var($ipSourceStripped, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))
+					{
+						array_push($ipv4Sources, $ipSource);
+					}
 				}
-				elseif(filter_var($ipSource, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))
+				
+				if(filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
 				{
-					array_push($ipv4Sources, $ipSource);
+					$clientMatches = IpUtils::checkIp($clientIp, $ipv6Sources);
 				}
-			}
-			
-			if(filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
-			{
-				$clientMatches = IpUtils::checkIp($clientIp, $ipv6Sources);
-			}
-			else
-			{
-				$clientMatches = IpUtils::checkIp($clientIp, $ipv4Sources);
-			}
-			
-			if($clientMatches)
-			{
+				else
+				{
+					$clientMatches = IpUtils::checkIp($clientIp, $ipv4Sources);
+				}
+				
+				if($clientMatches)
+				{
+					$payload = file_get_contents('php://input');
+					
+					$requestValid = FALSE;
+					$authErrorText = "Unspecified error";
+					
+					if($secureMode)
+					{
+						if(isset($_SERVER['HTTP_X_HUB_SIGNATURE']))
+						{
+							$headerSig = $_SERVER['HTTP_X_HUB_SIGNATURE'];
+							list($algo, $sig) = explode('=', $headerSig, 2);
+							
+							$payloadHash = hash_hmac($algo, $payload, $requestToken);
+							
+							if($hash === $sig)
+							{
+								$requestValid = TRUE;
+							}
+							else
+							{
+								$authErrorText = "signature invalid";
+							}
+							
+						}
+						else
+						{
+							$authErrorText = "GitHub signature request header missing";
+						}
+					}
+					else
+					{
+						$requestValid = TRUE;
+					}
+					
+					if($requestValid)
+					{
+						$responseCode = 202;
+						$responseText = "Request accepted for processing";
+						
+						$event = $_SERVER['HTTP_X_GITHUB_EVENT'];
+						
+						switch($event)
+						{
+							case "push":
+								//Do something here
+								$responseText = "You have sent a push webhook!";
+								break;
+						}
+					}
+					else
+					{
+						$responseCode = 401;
+						$responseText = "Request authentication failed - " . $authErrorText;					
+					}
+				}
+				else
+				{
+					$responseCode = 403;
+					$responseText = "Client IP is not in an authorized subnet";
+				}
 				
 			}
 			else
 			{
-				$responseCode = 403;
-				$responseText = "Client IP is not in API provided subnets";
+				$responseCode = 500;
+				$responseText = "Invalid client IP supplied to engine";
 			}
-			
-		}
-		else
-		{
-			$responseCode = 500;
-			$responseText = "Invalid client IP supplied to script";
 		}
 	}
+	else
+	{
+		$responseCode = 405;
+		$responseText = "This API only accepts POST requests";
+	}
+	
 	
 	http_response_code($responseCode);
 	
