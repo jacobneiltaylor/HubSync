@@ -160,7 +160,7 @@
 		$responseText = "This API only accepts POST requests";
 	}
 	
-	
+	header('Content-type: application/json');
 	http_response_code($responseCode);
 	
 	$responseCode = json_encode($responseCode);
