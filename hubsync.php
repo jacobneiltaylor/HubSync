@@ -93,7 +93,7 @@
 							
 							$payloadHash = hash_hmac($algo, $payload, $requestToken);
 							
-							if($hash === $sig)
+							if($payloadHash === $sig)
 							{
 								$requestValid = TRUE;
 							}
@@ -115,8 +115,8 @@
 					
 					if($requestValid)
 					{
-						$responseCode = 202;
-						$responseText = "Request accepted for processing";
+						$responseCode = 405;
+						$responseText = "Event functionality unimplemented";
 						
 						$event = $_SERVER['HTTP_X_GITHUB_EVENT'];
 						
@@ -124,7 +124,13 @@
 						{
 							case "push":
 								//Do something here
+								$responseCode = 202;
 								$responseText = "You have sent a push webhook!";
+								break;
+								
+							case "ping":
+								$responseCode = 202;
+								$responseText = "Ping received successfully";
 								break;
 						}
 					}
