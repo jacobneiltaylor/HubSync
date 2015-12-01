@@ -8,7 +8,7 @@
 	 *
 	 */
 	 
-	include_once('src/IpUtils.php');
+	include_once('lib/IpUtils.php');
 	use Symfony\Component\HttpFoundation\IpUtils;
 	
 	// Configuration options
