@@ -8,13 +8,13 @@
 	 *
 	 */
 	 
-	include_once('src/IpUtils.php')
-	
+	include_once('src/IpUtils.php');
 	use Symfony\Component\HttpFoundation;
 	
 	// Configuration options
 	$apiEndpoint    = "https://api.github.com/"; // Change for enterprise deployments
-	$clientIpHeader = "REMOTE_ADDR"; // Change if running behind CDN (e.g. Cloudflare or MaxCDN). Consult your CDN documentation for the correct header name.
+	$apiUserAgent   = "YourGithubUsername"; // Used to set the User-Agent for GitHub API requests. See https://developer.github.com/v3/#user-agent-required for more info.
+	$clientIpHeader = "REMOTE_ADDR"; // Change if running behind CDN (e.g. Cloudflare or MaxCDN). Consult your CDN documentation for the correct header parameters.
 	
 	// Variables
 	$responseCode;
@@ -27,6 +27,7 @@
 	$curl = curl_init($apiEndpoint . $apiPath);
 	
 	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($curl, CURLOPT_USERAGENT, $apiUserAgent);
 	
 	$curl_response = curl_exec($curl);
 	
@@ -41,6 +42,45 @@
 	{
 		if((bool) filter_var($clientIp, FILTER_VALIDATE_IP))
 		{
+			$clientMatches = false;
+			
+			$ipv4Sources = array();
+			$ipv6Sources = array();
+			
+			$response = json_decode($curl_response);
+			
+			var_dump($curl_response);
+			
+			foreach($response->hooks as $ipSource)
+			{
+				if(filter_var($ipSource, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+				{
+					array_push($ipv6Sources, $ipSource);
+				}
+				elseif(filter_var($ipSource, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))
+				{
+					array_push($ipv4Sources, $ipSource);
+				}
+			}
+			
+			if(filter_var($clientIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+			{
+				$clientMatches = IpUtils::checkIp($clientIp, $ipv6Sources);
+			}
+			else
+			{
+				$clientMatches = IpUtils::checkIp($clientIp, $ipv4Sources);
+			}
+			
+			if($clientMatches)
+			{
+				
+			}
+			else
+			{
+				$responseCode = 403;
+				$responseText = "Client IP is not in API provided subnets";
+			}
 			
 		}
 		else
