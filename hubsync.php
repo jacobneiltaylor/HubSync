@@ -9,7 +9,7 @@
 	 */
 	 
 	include_once('src/IpUtils.php');
-	use Symfony\Component\HttpFoundation;
+	use Symfony\Component\HttpFoundation\IpUtils;
 	
 	// Configuration options
 	$apiEndpoint    = "https://api.github.com/"; // Change for enterprise deployments
